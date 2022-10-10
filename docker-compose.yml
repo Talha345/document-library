@@ -1,0 +1,59 @@
+version: '2.1'
+services:
+  nginx:
+    build: nginx
+    networks:
+      - se_backend
+    volumes:
+      - ./nginx/www:/var/www/nginx
+  hbase:
+    build: hbase
+    networks:
+      se_backend:
+        aliases:
+            - zookeeper
+    ports:
+      - "2181:2181"
+      - "8080:8080"
+    healthcheck:
+      test: curl -f http://localhost:8080/ || exit 1
+      interval: 2s
+      retries: 5
+      timeout: 2s
+  grproxy:
+    build: grproxy
+    depends_on:
+      hbase:
+        condition: service_healthy
+    networks:
+      - se_frontend
+      - se_backend
+    ports:
+      - "5000:5000"
+  gserve1:
+    build: gserve
+    networks:
+      - se_backend
+    depends_on:
+      hbase:
+        condition: service_healthy
+      grproxy:
+        condition: service_started
+    environment:
+      NAME: "gserve1"
+  gserve2:
+    build: gserve
+    networks:
+      - se_backend
+    depends_on:
+      hbase:
+        condition: service_healthy
+      grproxy:
+        condition: service_started
+    environment:
+      NAME: "gserve2"
+networks:
+  se_backend:
+    driver: bridge
+  se_frontend:
+    driver: bridge
